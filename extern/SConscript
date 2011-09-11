@@ -1,0 +1,17 @@
+import os
+
+Import('env')
+
+# Move along, nothing to see here. Pay no attention to the terrible hack below.
+
+'''
+p = env.Command(
+   target = Default,
+   source = [env.Dir("#extern/")],
+   action = Action(os.system("cd openvpn && ./config.nice && make")),
+   source_scanner = env.get_scanner("openvpn")
+)
+'''
+
+SConscript(['myopenvpn/SConscript'])
+

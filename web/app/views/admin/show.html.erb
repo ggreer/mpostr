@@ -1,0 +1,18 @@
+<p>
+  <b>User:</b>
+  <%=h @user.user %>
+</p>
+
+<p>
+  <b>Pass:</b>
+  <%=h @user.pass %>
+</p>
+
+<p>
+  <b>Active:</b>
+  <%=h @user.active %>
+</p>
+
+
+<%= link_to 'Edit', edit_user_path(@user) %> |
+<%= link_to 'Back', users_path %>

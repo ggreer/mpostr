@@ -1,0 +1,20 @@
+This script is downloaded from 
+http://www.ush.it/products/scripts/myopenvpn/
+
+Thanks to the Author of this great plugin!!
+
+I've made the ACTIVE field in the database work, users with active = 0 
+will not be able to connect. Also, the password is MD5 sum.
+
+Compiling:
+./build
+
+This will build the plugin with mysql includes from /usr/include/, edit 
+the build script if you have your includes elsewhere.
+
+Dump the MYSQL database:
+Create a database named openvpn.
+Execute:
+mysql -u username -p < dump.sql
+
+This will create the tables need for the authentication plugin.

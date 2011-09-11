@@ -1,0 +1,5 @@
+./configure \
+--prefix=/impostor \
+--with-lzo-headers=/opt/local/include/ \
+--with-lzo-lib=/opt/local/lib/
+

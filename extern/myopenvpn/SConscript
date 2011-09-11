@@ -1,0 +1,4 @@
+Import('*')
+
+env.SharedLibrary('myopenvpn', ['myopenvpn.c'], LIBS=MYSQL_LIBS, LIBPATH=MYSQL_LIB_PATH)
+env.Install("/impostor", "extern/myopenvpn/myopenvpn.so")

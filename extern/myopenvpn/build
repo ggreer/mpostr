@@ -1,0 +1,9 @@
+#!/bin/sh
+
+# gcc -s mysql-ovpn.c  -o mysql-ovpn.o  -I /usr/include/mysql/ -lmysqlclient
+gcc -O2 -Wall -fPIC -c -I../.. -I/usr/include/mysql/ myopenvpn.c 
+# if you installed mysql with macports
+#gcc -O2 -Wall -fPIC -c -I../.. -I/opt/local/include/mysql5/mysql/ myopenvpn.c 
+#gcc -fPIC -shared -Wl,-soname,myopenvpn.so -lmysqlclient -o myopenvpn.so myopenvpn.o -lc
+gcc -fPIC -shared -L/opt/local/lib/mysql5/mysql/ -lmysqlclient -o myopenvpn.so myopenvpn.o -lc
+
