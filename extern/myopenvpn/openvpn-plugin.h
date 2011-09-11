@@ -98,9 +98,9 @@ typedef void *openvpn_plugin_handle_t;
  */
 struct openvpn_plugin_string_list
 {
-  struct openvpn_plugin_string_list *next;
-  char *name;
-  char *value;
+    struct openvpn_plugin_string_list *next;
+    char *name;
+    char *value;
 };
 
 /*
@@ -166,10 +166,10 @@ struct openvpn_plugin_string_list
  * An openvpn_plugin_handle_t value on success, NULL on failure
  */
 OPENVPN_PLUGIN_DEF openvpn_plugin_handle_t OPENVPN_PLUGIN_FUNC(openvpn_plugin_open_v2)
-     (unsigned int *type_mask,
-      const char *argv[],
-      const char *envp[],
-      struct openvpn_plugin_string_list **return_list);
+    (unsigned int *type_mask,
+     const char *argv[],
+     const char *envp[],
+     struct openvpn_plugin_string_list **return_list);
 
 /*
  * FUNCTION: openvpn_plugin_func_v2
@@ -204,12 +204,12 @@ OPENVPN_PLUGIN_DEF openvpn_plugin_handle_t OPENVPN_PLUGIN_FUNC(openvpn_plugin_op
  * OPENVPN_PLUGIN_FUNC_SUCCESS on success, OPENVPN_PLUGIN_FUNC_ERROR on failure
  */
 OPENVPN_PLUGIN_DEF int OPENVPN_PLUGIN_FUNC(openvpn_plugin_func_v2)
-     (openvpn_plugin_handle_t handle,
-      const int type,
-      const char *argv[],
-      const char *envp[],
-      void *per_client_context,
-      struct openvpn_plugin_string_list **return_list);
+    (openvpn_plugin_handle_t handle,
+     const int type,
+     const char *argv[],
+     const char *envp[],
+     void *per_client_context,
+     struct openvpn_plugin_string_list **return_list);
 
 /*
  * FUNCTION: openvpn_plugin_close_v1
@@ -224,7 +224,7 @@ OPENVPN_PLUGIN_DEF int OPENVPN_PLUGIN_FUNC(openvpn_plugin_func_v2)
  * Called immediately prior to plug-in unload.
  */
 OPENVPN_PLUGIN_DEF void OPENVPN_PLUGIN_FUNC(openvpn_plugin_close_v1)
-     (openvpn_plugin_handle_t handle);
+    (openvpn_plugin_handle_t handle);
 
 /*
  * FUNCTION: openvpn_plugin_abort_v1
@@ -241,7 +241,7 @@ OPENVPN_PLUGIN_DEF void OPENVPN_PLUGIN_FUNC(openvpn_plugin_close_v1)
  * openvpn_plugin_open callback.
  */
 OPENVPN_PLUGIN_DEF void OPENVPN_PLUGIN_FUNC(openvpn_plugin_abort_v1)
-     (openvpn_plugin_handle_t handle);
+    (openvpn_plugin_handle_t handle);
 
 /*
  * FUNCTION: openvpn_plugin_client_constructor_v1
@@ -270,7 +270,7 @@ OPENVPN_PLUGIN_DEF void OPENVPN_PLUGIN_FUNC(openvpn_plugin_abort_v1)
  * if no memory region is required.
  */
 OPENVPN_PLUGIN_DEF void * OPENVPN_PLUGIN_FUNC(openvpn_plugin_client_constructor_v1)
-     (openvpn_plugin_handle_t handle);
+    (openvpn_plugin_handle_t handle);
 
 /*
  * FUNCTION: openvpn_plugin_client_destructor_v1
@@ -288,7 +288,7 @@ OPENVPN_PLUGIN_DEF void * OPENVPN_PLUGIN_FUNC(openvpn_plugin_client_constructor_
  *        openvpn_plugin_client_constructor_v1, if defined.
  */
 OPENVPN_PLUGIN_DEF void OPENVPN_PLUGIN_FUNC(openvpn_plugin_client_destructor_v1)
-     (openvpn_plugin_handle_t handle, void *per_client_context);
+    (openvpn_plugin_handle_t handle, void *per_client_context);
 
 /*
  * FUNCTION: openvpn_plugin_select_initialization_point_v1
@@ -312,7 +312,7 @@ OPENVPN_PLUGIN_DEF void OPENVPN_PLUGIN_FUNC(openvpn_plugin_client_destructor_v1)
 #define OPENVPN_PLUGIN_INIT_POST_UID_CHANGE  4
 
 OPENVPN_PLUGIN_DEF int OPENVPN_PLUGIN_FUNC(openvpn_plugin_select_initialization_point_v1)
-     (void);
+    (void);
 
 /*
  * FUNCTION: openvpn_plugin_min_version_required_v1
@@ -328,16 +328,14 @@ OPENVPN_PLUGIN_DEF int OPENVPN_PLUGIN_FUNC(openvpn_plugin_select_initialization_
  * this plugin.
  */
 OPENVPN_PLUGIN_DEF int OPENVPN_PLUGIN_FUNC(openvpn_plugin_min_version_required_v1)
-     (void);
+    (void);
 
 /*
  * Deprecated functions which are still supported for backward compatibility.
  */
 
 OPENVPN_PLUGIN_DEF openvpn_plugin_handle_t OPENVPN_PLUGIN_FUNC(openvpn_plugin_open_v1)
-     (unsigned int *type_mask,
-      const char *argv[],
-      const char *envp[]);
+    (unsigned int *type_mask, const char *argv[], const char *envp[]);
 
 OPENVPN_PLUGIN_DEF int OPENVPN_PLUGIN_FUNC(openvpn_plugin_func_v1)
-     (openvpn_plugin_handle_t handle, const int type, const char *argv[], const char *envp[]);
+    (openvpn_plugin_handle_t handle, const int type, const char *argv[], const char *envp[]);
