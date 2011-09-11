@@ -1,5 +1,6 @@
 *.dylib
 *.o
 *.os
+*.pyc
 *.so
 .sconsign.dblite
