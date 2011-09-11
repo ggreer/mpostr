@@ -1,5 +1,6 @@
 import sys
 import os
+
 EnsureSConsVersion(0, 97, 0)
 SetOption('num_jobs', 2)
 
@@ -8,12 +9,8 @@ DIRS = ['config', 'extern', 'web']
 MYSQL_LIBS = ['mysqlclient']
 MYOPENVPN_CFLAGS = ['-fPIC']
 
-if sys.platform == "darwin":
-  MYSQL_INC = ['/opt/local/include/mysql5/mysql/']
-  MYSQL_LIB_PATH = ['/opt/local/lib/mysql5/mysql']
-else:
-  MYSQL_INC = ['/usr/include/mysql/']
-  MYSQL_LIB_PATH = ['/usr/lib/mysql']
+MYSQL_INC = ['/usr/include/mysql/']
+MYSQL_LIB_PATH = ['/usr/lib/mysql']
 
 env = Environment(CPPPATH=MYSQL_INC)
 
