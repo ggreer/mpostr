@@ -6,10 +6,10 @@ I_HOME=/impostor
 
 # We don't want to overwrite configs by accident
 cp ../config/* ${I_HOME}/config/
-cp ../../crypto/keys/dh1024.pem ${I_HOME}/config/
-cp ../../crypto/keys/ca.crt ${I_HOME}/config/
-cp ../../crypto/keys/server.crt ${I_HOME}/config/
-cp ../../crypto/keys/server.key ${I_HOME}/config/
+cp ../crypto/keys/dh1024.pem ${I_HOME}/config/
+cp ../crypto/keys/ca.crt ${I_HOME}/config/
+cp ../crypto/keys/server.crt ${I_HOME}/config/
+cp ../crypto/keys/server.key ${I_HOME}/config/
 
 cp ../extern/openvpn/openvpn ${I_HOME}/
 cp ../extern/myopenvpn/myopenvpn.so ${I_HOME}/
