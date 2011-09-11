@@ -10,3 +10,12 @@ myopenvpn needs libmysqlclient-dev
 
     scons
 
+
+# Directories
+
+* config - random config files for apache and openvpn
+* crypto - certs and keys because I'm a lazy bum
+* extern
+    * myopenvpn - module so openvpn can auth against mysql db
+    * openvpn - openvpn server
+* web - website (rails app)
