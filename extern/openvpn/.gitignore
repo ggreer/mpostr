@@ -1,0 +1,10 @@
+.deps
+autom4te.cache
+config.h
+config.log
+config.status
+configure.h
+install-win32/settings
+Makefile
+openvpn
+stamp-h1
