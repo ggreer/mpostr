@@ -5,6 +5,7 @@ myopenvpn needs libmysqlclient-dev
 
     sudo aptitude install build-essential liblzo2-dev libssl-dev libmysqlclient-dev
 
+    pip install Django MySQL-Python
 
 # Building
 
