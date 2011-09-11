@@ -382,6 +382,11 @@
 #define EXTENDED_SOCKET_ERROR_CAPABILITY 0
 #endif
 
+/* SOL_IP is not defined on OSX Lion */
+#if defined(TARGET_DARWIN) && !defined(SOL_IP)
+#define SOL_IP IPPROTO_IP
+#endif
+
 /*
  * Does this platform support linux-style IP_PKTINFO?
  */
