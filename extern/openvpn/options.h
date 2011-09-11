@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2009 OpenVPN Technologies, Inc. <sales@openvpn.net>
+ *  Copyright (C) 2002-2010 OpenVPN Technologies, Inc. <sales@openvpn.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -40,6 +40,7 @@
 #include "manage.h"
 #include "proxy.h"
 #include "lzo.h"
+#include "pushlist.h"
 
 /*
  * Maximum number of parameters associated with an option,
@@ -57,17 +58,6 @@ extern const char title_string[];
 
 #if P2MP
 
-#if P2MP_SERVER
-/* parameters to be pushed to peer */
-
-#define MAX_PUSH_LIST_LEN TLS_CHANNEL_BUF_SIZE /* This parm is related to PLAINTEXT_BUFFER_SIZE in ssl.h */
-
-struct push_list {
-  /* newline delimited options, like config file */
-  char options[MAX_PUSH_LIST_LEN];
-};
-#endif
-
 /* certain options are saved before --pull modifications are applied */
 struct options_pre_pull
 {
@@ -75,7 +65,7 @@ struct options_pre_pull
   struct tuntap_options tuntap_options;
 
   bool routes_defined;
-  struct route_option_list routes;
+  struct route_option_list *routes;
 
   int foreign_option_index;
 };
@@ -105,8 +95,17 @@ struct connection_entry
 #ifdef ENABLE_SOCKS
   const char *socks_proxy_server;
   int socks_proxy_port;
+  const char *socks_proxy_authfile;
   bool socks_proxy_retry;
 #endif
+
+# define CE_DISABLED (1<<0)
+#if HTTP_PROXY_FALLBACK
+# define CE_HTTP_PROXY_FALLBACK (1<<1)
+  time_t ce_http_proxy_fallback_timestamp; /* time when fallback http_proxy_options was last updated */
+#endif
+
+  unsigned int flags;
 };
 
 struct remote_entry
@@ -124,6 +123,7 @@ struct connection_list
 {
   int len;
   int current;
+  int n_cycles;
   bool no_advance;
   struct connection_entry *array[CONNECTION_LIST_SIZE];
 };
@@ -134,6 +134,14 @@ struct remote_list
   struct remote_entry *array[CONNECTION_LIST_SIZE];
 };
 
+#endif
+
+#if HTTP_PROXY_FALLBACK
+struct hpo_store
+{
+  struct http_proxy_options hpo;
+  char server[80];
+};
 #endif
 
 /* Command line options */
@@ -172,12 +180,20 @@ struct options
   struct connection_entry ce;
 
 #ifdef ENABLE_CONNECTION
+  char *remote_ip_hint;
   struct connection_list *connection_list;
   struct remote_list *remote_list;
+  bool force_connection_list;
 #endif
 
 #ifdef GENERAL_PROXY_SUPPORT
   struct auto_proxy_info *auto_proxy_info;
+#endif
+
+#if HTTP_PROXY_FALLBACK
+  bool http_proxy_fallback;
+  struct http_proxy_options *http_proxy_override;
+  struct hpo_store *hpo_store; /* used to store dynamic proxy info given by management interface */
 #endif
 
   bool remote_random;
@@ -200,6 +216,8 @@ struct options
   int link_mtu;          /* MTU of device over which tunnel packets pass via TCP/UDP */
   bool tun_mtu_defined;  /* true if user overriding parm with command line option */
   bool link_mtu_defined; /* true if user overriding parm with command line option */
+
+  int proto_force;
 
   /* Advanced MTU negotiation and datagram fragmentation options */
   int mtu_discover_type; /* used if OS supports setting Path MTU discovery options on socket */
@@ -253,6 +271,9 @@ struct options
   const char *groupname;
   const char *chroot_dir;
   const char *cd_dir;
+#ifdef HAVE_SETCON
+  char *selinux_context;
+#endif
   const char *writepid;
   const char *up_script;
   const char *down_script;
@@ -303,6 +324,7 @@ struct options
   int route_delay;
   int route_delay_window;
   bool route_delay_defined;
+  int max_routes;
   struct route_option_list *routes;
   bool route_nopull;
   bool route_gateway_via_dhcp;
@@ -333,10 +355,7 @@ struct options
   struct plugin_option_list *plugin_list;
 #endif
 
-#ifdef USE_PTHREAD
-  int n_threads;
-  int nice_work;
-#endif
+  const char *tmp_dir;
 
 #if P2MP
 
@@ -358,7 +377,7 @@ struct options
   in_addr_t server_bridge_pool_start;
   in_addr_t server_bridge_pool_end;
 
-  struct push_list *push_list;
+  struct push_list push_list;
   bool ifconfig_pool_defined;
   in_addr_t ifconfig_pool_start;
   in_addr_t ifconfig_pool_end;
@@ -370,7 +389,6 @@ struct options
   const char *client_connect_script;
   const char *client_disconnect_script;
   const char *learn_address_script;
-  const char *tmp_dir;
   const char *client_config_dir;
   bool ccd_exclusive;
   bool disable;
@@ -401,8 +419,11 @@ struct options
 
   bool client;
   bool pull; /* client pull of config options from server */
+  int push_continuation;
   const char *auth_user_pass_file;
   struct options_pre_pull *pre_pull;
+
+  int server_poll_timeout;
 
   int scheduled_exit_interval;
 
@@ -443,6 +464,7 @@ struct options
   const char *pkcs12_file;
   const char *cipher_list;
   const char *tls_verify;
+  const char *tls_export_cert;
   const char *tls_remote;
   const char *crl_file;
 
@@ -451,6 +473,7 @@ struct options
   const char *cert_file_inline;
   char *priv_key_file_inline;
   const char *dh_file_inline;
+  const char *pkcs12_file_inline; /* contains the base64 encoding of pkcs12 file */
 #endif
 
   int ns_cert_type; /* set to 0, NS_SSL_SERVER, or NS_SSL_CLIENT */
@@ -486,6 +509,11 @@ struct options
      within n seconds of handshake initiation. */
   int handshake_window;
 
+#ifdef ENABLE_X509ALTUSERNAME
+  /* Field used to be the username in X509 cert. */
+  char *x509_username_field;
+#endif
+
   /* Old key allowed to live n seconds after new key goes active */
   int transition_window;
 
@@ -497,6 +525,10 @@ struct options
 
   /* Allow only one session */
   bool single_session;
+
+#ifdef ENABLE_PUSH_PEER_INFO
+  bool push_peer_info;
+#endif
 
   bool tls_exit;
 
@@ -712,5 +744,16 @@ connection_list_set_no_advance (struct options *o)
     o->connection_list->no_advance = true;
 #endif
 }
+
+#if HTTP_PROXY_FALLBACK
+
+struct http_proxy_options *
+parse_http_proxy_fallback (struct context *c,
+			   const char *server,
+			   const char *port,
+			   const char *flags,
+			   const int msglevel);
+
+#endif /* HTTP_PROXY_FALLBACK */
 
 #endif

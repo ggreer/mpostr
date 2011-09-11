@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2009 OpenVPN Technologies, Inc. <sales@openvpn.net>
+ *  Copyright (C) 2002-2010 OpenVPN Technologies, Inc. <sales@openvpn.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -29,11 +29,7 @@
  * Only include if not during configure
  */
 #ifndef PACKAGE_NAME
-#ifdef _MSC_VER
-#include "config-win32.h"
-#else
 #include "config.h"
-#endif
 #endif
 
 /* branch prediction hints */
@@ -51,6 +47,7 @@
 
 #ifdef WIN32
 #include <windows.h>
+#include <winsock2.h>
 #define sleep(x) Sleep((x)*1000)
 #define random rand
 #define srandom srand
@@ -85,6 +82,10 @@
 #endif
 
 #ifdef HAVE_SYS_SOCKET_H
+# if defined(TARGET_LINUX) && !defined(_GNU_SOURCE)
+   /* needed for peercred support on glibc-2.8 */
+#  define _GNU_SOURCE
+# endif
 #include <sys/socket.h>
 #endif
 
@@ -178,6 +179,10 @@
 
 #ifdef HAVE_SYS_EPOLL_H
 #include <sys/epoll.h>
+#endif
+
+#ifdef HAVE_SETCON
+#include <selinux/selinux.h>
 #endif
 
 #ifdef TARGET_SOLARIS
@@ -494,7 +499,6 @@ socket_defined (const socket_descriptor_t sd)
 /*
  * Enable deferred authentication?
  */
-#define CONFIGURE_DEF_AUTH /* this should be set by autoconf and config.h */
 #if defined(CONFIGURE_DEF_AUTH) && P2MP_SERVER && defined(ENABLE_PLUGIN)
 #define PLUGIN_DEF_AUTH
 #endif
@@ -508,7 +512,6 @@ socket_defined (const socket_descriptor_t sd)
 /*
  * Enable packet filter?
  */
-#define CONFIGURE_PF /* this should be set by autoconf and config.h */
 #if defined(CONFIGURE_PF) && P2MP_SERVER && defined(ENABLE_PLUGIN) && defined(HAVE_STAT)
 #define PLUGIN_PF
 #endif
@@ -529,29 +532,9 @@ socket_defined (const socket_descriptor_t sd)
 #endif
 
 /*
- * Don't compile the struct buffer_list code unless something needs it
+ * Compile the struct buffer_list code
  */
-#if defined(ENABLE_MANAGEMENT) || defined(ENABLE_PF)
 #define ENABLE_BUFFER_LIST
-#endif
-
-/*
- * Do we have pthread capability?
- */
-#ifdef USE_PTHREAD
-#if defined(USE_CRYPTO) && defined(USE_SSL) && P2MP
-#include <pthread.h>
-#else
-#undef USE_PTHREAD
-#endif
-#endif
-
-/*
- * Pthread support is currently experimental (and quite unfinished).
- */
-#if 1 /* JYFIXME -- if defined, disable pthread */
-#undef USE_PTHREAD
-#endif
 
 /*
  * Should we include OCC (options consistency check) code?
@@ -567,6 +550,15 @@ socket_defined (const socket_descriptor_t sd)
 #define NTLM 1
 #else
 #define NTLM 0
+#endif
+
+/*
+ * Should we include proxy digest auth functionality
+ */
+#if defined(USE_CRYPTO) && defined(ENABLE_HTTP_PROXY)
+#define PROXY_DIGEST_AUTH 1
+#else
+#define PROXY_DIGEST_AUTH 0
 #endif
 
 /*
@@ -614,6 +606,22 @@ socket_defined (const socket_descriptor_t sd)
 #define ENABLE_INLINE_FILES 1
 
 /*
+ * Support "connection" directive
+ */
+#if ENABLE_INLINE_FILES
+#define ENABLE_CONNECTION 1
+#endif
+
+/*
+ * Should we include http proxy fallback functionality
+ */
+#if defined(ENABLE_CONNECTION) && defined(ENABLE_MANAGEMENT) && defined(ENABLE_HTTP_PROXY)
+#define HTTP_PROXY_FALLBACK 1
+#else
+#define HTTP_PROXY_FALLBACK 0
+#endif
+
+/*
  * Reduce sensitivity to system clock instability
  * and backtracks.
  */
@@ -636,10 +644,15 @@ socket_defined (const socket_descriptor_t sd)
 #endif
 
 /*
- * Support "connection" directive
+ * Do we support challenge/response authentication, as a console-based client?
  */
-#if ENABLE_INLINE_FILES
-#define ENABLE_CONNECTION 1
+#define ENABLE_CLIENT_CR
+
+/*
+ * Do we support pushing peer info?
+ */
+#if defined(USE_CRYPTO) && defined(USE_SSL)
+#define ENABLE_PUSH_PEER_INFO
 #endif
 
 #endif

@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2009 OpenVPN Technologies, Inc. <sales@openvpn.net>
+ *  Copyright (C) 2002-2010 OpenVPN Technologies, Inc. <sales@openvpn.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -110,6 +110,35 @@ struct user_pass {
 
 /* Background process function */
 static void pam_server (int fd, const char *service, int verb, const struct name_value_list *name_value_list);
+
+/*  Read 'tosearch', replace all occurences of 'searchfor' with 'replacewith' and return
+ *  a pointer to the NEW string.  Does not modify the input strings.  Will not enter an
+ *  infinite loop with clever 'searchfor' and 'replacewith' strings.
+ *  Daniel Johnson - Progman2000@usa.net / djohnson@progman.us
+ */
+static char *
+searchandreplace(const char *tosearch, const char *searchfor, const char *replacewith)
+{
+  const char *searching=tosearch;
+  char *scratch;
+  char temp[strlen(tosearch)*10];
+  temp[0]=0;
+
+  if (!tosearch || !searchfor || !replacewith) return 0;
+  if (!strlen(tosearch) || !strlen(searchfor) || !strlen(replacewith)) return 0;
+
+  scratch = strstr(searching,searchfor);
+  if (!scratch) return strdup(tosearch);
+
+  while (scratch) {
+    strncat(temp,searching,scratch-searching);
+    strcat(temp,replacewith);
+
+    searching=scratch+strlen(searchfor);
+    scratch = strstr(searching,searchfor);
+  }
+  return strdup(temp);
+}
 
 /*
  * Given an environmental variable name, search
@@ -305,6 +334,8 @@ openvpn_plugin_open_v1 (unsigned int *type_mask, const char *argv[], const char 
    * Allocate our context
    */
   context = (struct auth_pam_context *) calloc (1, sizeof (struct auth_pam_context));
+  if (!context)
+    goto error;
   context->foreground_fd = -1;
 
   /*
@@ -492,7 +523,7 @@ openvpn_plugin_abort_v1 (openvpn_plugin_handle_t handle)
   struct auth_pam_context *context = (struct auth_pam_context *) handle;
 
   /* tell background process to exit */
-  if (context->foreground_fd >= 0)
+  if (context && context->foreground_fd >= 0)
     {
       send_control (context->foreground_fd, COMMAND_EXIT);
       close (context->foreground_fd);
@@ -549,7 +580,7 @@ my_conv (int n, const struct pam_message **msg_array,
 	      if (name_value_match (msg->msg, match_name))
 		{
 		  /* found name/value match */
-		  const char *return_value = NULL;
+		  aresp[i].resp = NULL;
 
 		  if (DEBUG (up->verb))
 		    fprintf (stderr, "AUTH-PAM: BACKGROUND: name match found, query/match-string ['%s', '%s'] = '%s'\n",
@@ -557,14 +588,13 @@ my_conv (int n, const struct pam_message **msg_array,
 			     match_name,
 			     match_value);
 
-		  if (!strcmp (match_value, "USERNAME"))
-		    return_value = up->username;
-		  else if (!strcmp (match_value, "PASSWORD"))
-		    return_value = up->password;
+		  if (strstr(match_value, "USERNAME"))
+		    aresp[i].resp = searchandreplace(match_value, "USERNAME", up->username);
+		  else if (strstr(match_value, "PASSWORD"))
+		    aresp[i].resp = searchandreplace(match_value, "PASSWORD", up->password);
 		  else
-		    return_value = match_value;
+		    aresp[i].resp = strdup (match_value);
 
-		  aresp[i].resp = strdup (return_value);
 		  if (aresp[i].resp == NULL)
 		    ret = PAM_CONV_ERR;
 		  break;

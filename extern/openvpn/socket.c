@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2009 OpenVPN Technologies, Inc. <sales@openvpn.net>
+ *  Copyright (C) 2002-2010 OpenVPN Technologies, Inc. <sales@openvpn.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -26,12 +26,12 @@
 
 #include "socket.h"
 #include "fdmisc.h"
-#include "thread.h"
 #include "misc.h"
 #include "gremlin.h"
 #include "plugin.h"
 #include "ps.h"
 #include "manage.h"
+#include "misc.h"
 
 #include "memdbg.h"
 
@@ -41,6 +41,19 @@ const int proto_overhead[] = { /* indexed by PROTO_x */
   IPv4_TCP_HEADER_SIZE,
   IPv4_TCP_HEADER_SIZE
 };
+
+/*
+ * Convert sockflags/getaddr_flags into getaddr_flags
+ */
+static unsigned int
+sf2gaf(const unsigned int getaddr_flags,
+       const unsigned int sockflags)
+{
+  if (sockflags & SF_HOST_RANDOMIZE)
+    return getaddr_flags | GETADDR_RANDOMIZE;
+  else
+    return getaddr_flags;
+}
 
 /*
  * Functions related to the translation of DNS names to IP addresses.
@@ -75,10 +88,28 @@ getaddr (unsigned int flags,
 	 bool *succeeded,
 	 volatile int *signal_received)
 {
+  return getaddr_multi (flags, hostname, resolve_retry_seconds, succeeded, signal_received, NULL);
+}
+
+in_addr_t
+getaddr_multi (unsigned int flags,
+	 const char *hostname,
+	 int resolve_retry_seconds,
+	 bool *succeeded,
+	 volatile int *signal_received,
+	 struct resolve_list *reslist)
+{
   struct in_addr ia;
   int status;
   int sigrec = 0;
   int msglevel = (flags & GETADDR_FATAL) ? M_FATAL : D_RESOLVE_ERRORS;
+  struct gc_arena gc = gc_new ();
+
+  if (reslist)
+    reslist->len = 0;
+
+  if (flags & GETADDR_RANDOMIZE)
+    hostname = hostname_randomize(hostname, &gc);
 
   if (flags & GETADDR_MSG_VIRT_OUT)
     msglevel |= M_MSG_VIRT_OUT;
@@ -194,12 +225,28 @@ getaddr (unsigned int flags,
 		++n;
 	      ASSERT (n >= 2);
 
-	      msg (D_RESOLVE_ERRORS, "RESOLVE: NOTE: %s resolves to %d addresses, choosing one by random",
+	      msg (D_RESOLVE_ERRORS, "RESOLVE: NOTE: %s resolves to %d addresses",
 		   hostname,
 		   n);
 
 	      /* choose address randomly, for basic load-balancing capability */
-	      ia.s_addr = *(in_addr_t *) (h->h_addr_list[get_random () % n]);
+	      /*ia.s_addr = *(in_addr_t *) (h->h_addr_list[get_random () % n]);*/
+
+	      /* choose first address */
+	      ia.s_addr = *(in_addr_t *) (h->h_addr_list[0]);
+
+	      if (reslist)
+		{
+		  int i;
+		  for (i = 0; i < n && i < SIZE(reslist->data); ++i)
+		    {
+		      in_addr_t a = *(in_addr_t *) (h->h_addr_list[i]);
+		      if (flags & GETADDR_HOST_ORDER)
+			a = ntohl(a);
+		      reslist->data[i] = a;
+		    }
+		  reslist->len = i;
+		}
 	    }
 	}
 
@@ -225,6 +272,7 @@ getaddr (unsigned int flags,
       msg (level, "RESOLVE: signal received during DNS resolution attempt");
     }
 
+  gc_free (&gc);
   return (flags & GETADDR_HOST_ORDER) ? ntohl (ia.s_addr) : ia.s_addr;
 }
 
@@ -359,12 +407,13 @@ mac_addr_safe (const char *mac_addr)
 static void
 update_remote (const char* host,
 	       struct openvpn_sockaddr *addr,
-	       bool *changed)
+	       bool *changed,
+	       const unsigned int sockflags)
 {
   if (host && addr)
     {
       const in_addr_t new_addr = getaddr (
-					  GETADDR_RESOLVE|GETADDR_UPDATE_MANAGEMENT_STATE,
+					  sf2gaf(GETADDR_RESOLVE|GETADDR_UPDATE_MANAGEMENT_STATE, sockflags),
 					  host,
 					  1,
 					  NULL,
@@ -466,7 +515,7 @@ socket_set_buffers (int fd, const struct socket_buffer_size *sbs)
 static bool
 socket_set_tcp_nodelay (int sd, int state)
 {
-#if defined(HAVE_SETSOCKOPT) && defined(IPPROTO_TCP) && defined(TCP_NODELAY)
+#if defined(WIN32) || (defined(HAVE_SETSOCKOPT) && defined(IPPROTO_TCP) && defined(TCP_NODELAY))
   if (setsockopt (sd, IPPROTO_TCP, TCP_NODELAY, (void *) &state, sizeof (state)) != 0)
     {
       msg (M_WARN, "NOTE: setsockopt TCP_NODELAY=%d failed", state);
@@ -728,7 +777,7 @@ socket_listen_accept (socket_descriptor_t sd,
 
       if (socket_defined (new_sd))
 	{
-	  update_remote (remote_dynamic, &remote_verify, remote_changed);
+	  update_remote (remote_dynamic, &remote_verify, remote_changed, 0);
 	  if (addr_defined (&remote_verify)
 	      && !addr_match (&remote_verify, &act->dest))
 	    {
@@ -858,6 +907,7 @@ socket_connect (socket_descriptor_t *sd,
 		const int connect_retry_seconds,
 		const int connect_timeout,
 		const int connect_retry_max,
+		const unsigned int sockflags,
 		volatile int *signal_received)
 {
   struct gc_arena gc = gc_new ();
@@ -919,7 +969,7 @@ socket_connect (socket_descriptor_t *sd,
       *sd = create_socket_tcp ();
       if (bind_local)
         socket_bind (*sd, local, "TCP Client");
-      update_remote (remote_dynamic, remote, remote_changed);
+      update_remote (remote_dynamic, remote, remote_changed, sockflags);
     }
 
   msg (M_INFO, "TCP connection established with %s", 
@@ -1023,7 +1073,7 @@ resolve_remote (struct link_socket *sock,
 
 	  if (sock->remote_host)
 	    {
-	      unsigned int flags = GETADDR_RESOLVE|GETADDR_UPDATE_MANAGEMENT_STATE;
+	      unsigned int flags = sf2gaf(GETADDR_RESOLVE|GETADDR_UPDATE_MANAGEMENT_STATE, sock->sockflags);
 	      int retry = 0;
 	      bool status = false;
 
@@ -1270,6 +1320,10 @@ link_socket_init_phase1 (struct link_socket *sock,
   else if (mode != LS_MODE_TCP_ACCEPT_FROM)
     {
       create_socket (sock);
+
+      /* set socket buffers based on --sndbuf and --rcvbuf options */
+      socket_set_buffers (sock->sd, &sock->socket_buffer_sizes);
+
       resolve_bind_local (sock);
       resolve_remote (sock, 1, NULL, NULL);
     }
@@ -1384,6 +1438,7 @@ link_socket_init_phase2 (struct link_socket *sock,
 			    sock->connect_retry_seconds,
 			    sock->connect_timeout,
 			    sock->connect_retry_max,
+			    sock->sockflags,
 			    signal_received);
 
 	    if (*signal_received)
@@ -1432,6 +1487,7 @@ link_socket_init_phase2 (struct link_socket *sock,
 			  sock->connect_retry_seconds,
 			  sock->connect_timeout,
 			  sock->connect_retry_max,
+			  sock->sockflags,
 			  signal_received);
 
 	  if (*signal_received)
@@ -1469,9 +1525,6 @@ link_socket_init_phase2 (struct link_socket *sock,
 	  sock->info.lsa->remote.sa.sin_addr.s_addr = sock->info.lsa->actual.dest.sa.sin_addr.s_addr;
 	}
     }
-
-  /* set socket buffers based on --sndbuf and --rcvbuf options */
-  socket_set_buffers (sock->sd, &sock->socket_buffer_sizes);
 
   /* set misc socket parameters */
   socket_set_flags (sock->sd, sock->sockflags);
@@ -1641,7 +1694,7 @@ link_socket_connection_initiated (const struct buffer *buf,
       struct argv argv = argv_new ();
       setenv_str (es, "script_type", "ipchange");
       ipchange_fmt (true, &argv, info, &gc);
-      openvpn_execve_check (&argv, es, S_SCRIPT, "ip-change command failed");
+      openvpn_run_script (&argv, es, 0, "--ipchange");
       argv_reset (&argv);
     }
 
@@ -1840,7 +1893,7 @@ stream_buf_added (struct stream_buf *sb,
 
       if (sb->len < 1 || sb->len > sb->maxlen)
 	{
-	  msg (M_WARN, "WARNING: Bad encapsulated packet length from peer (%d), which must be > 0 and <= %d -- please ensure that --tun-mtu or --link-mtu is equal on both peers -- this condition could also indicate a possible active attack on the TCP link -- [Attemping restart...]", sb->len, sb->maxlen);
+	  msg (M_WARN, "WARNING: Bad encapsulated packet length from peer (%d), which must be > 0 and <= %d -- please ensure that --tun-mtu or --link-mtu is equal on both peers -- this condition could also indicate a possible active attack on the TCP link -- [Attempting restart...]", sb->len, sb->maxlen);
 	  stream_buf_reset (sb);
 	  sb->error = true;
 	  return false;
@@ -1911,10 +1964,8 @@ print_sockaddr_ex (const struct openvpn_sockaddr *addr,
       struct buffer out = alloc_buf_gc (64, gc);
       const int port = ntohs (addr->sa.sin_port);
 
-      mutex_lock_static (L_INET_NTOA);
       if (!(flags & PS_DONT_SHOW_ADDR))
 	buf_printf (&out, "%s", (addr_defined (addr) ? inet_ntoa (addr->sa.sin_addr) : "[undef]"));
-      mutex_unlock_static (L_INET_NTOA);
 
       if (((flags & PS_SHOW_PORT) || (addr_defined (addr) && (flags & PS_SHOW_PORT_IF_DEFINED)))
 	  && port)
@@ -1976,9 +2027,7 @@ print_in_addr_t (in_addr_t addr, unsigned int flags, struct gc_arena *gc)
       CLEAR (ia);
       ia.s_addr = (flags & IA_NET_ORDER) ? addr : htonl (addr);
 
-      mutex_lock_static (L_INET_NTOA);
       buf_printf (&out, "%s", inet_ntoa (ia));
-      mutex_unlock_static (L_INET_NTOA);
     }
   return BSTR (&out);
 }
@@ -1994,9 +2043,7 @@ setenv_sockaddr (struct env_set *es, const char *name_prefix, const struct openv
   else
     openvpn_snprintf (name_buf, sizeof (name_buf), "%s", name_prefix);
 
-  mutex_lock_static (L_INET_NTOA);
   setenv_str (es, name_buf, inet_ntoa (addr->sa.sin_addr));
-  mutex_unlock_static (L_INET_NTOA);
 
   if ((flags & SA_IP_PORT) && addr->sa.sin_port)
     {

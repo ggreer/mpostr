@@ -4,12 +4,8 @@
  *
  *  This code was inspired by the CIPE-Win32 driver by Damion K. Wilson.
  *
- *  This source code is Copyright (C) 2002-2009 OpenVPN Technologies, Inc.,
- *  and is released under the GPL version 2 (see below), however due
- *  to the extra costs of supporting Windows Vista, OpenVPN Solutions
- *  LLC reserves the right to change the terms of the TAP-Win32/TAP-Win64
- *  license for versions 9.1 and higher prior to the official release of
- *  OpenVPN 2.1.
+ *  This source code is Copyright (C) 2002-2010 OpenVPN Technologies, Inc.,
+ *  and is released under the GPL version 2 (see below).
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -32,14 +28,8 @@
 // common to both.
 //===============================================
 
-#if defined(HAVE_CONFIG_H)
-#include "config.h"
-#else
-#if defined(_MSC_VER) && !defined(TAP_DRIVER_MAJOR_VERSION)
-#include "config-win32.h"
-#else
-#include "../config.h"
-#endif
+#ifndef HAVE_CONFIG_H
+#include "autodefs.h"
 #endif
 
 //=============

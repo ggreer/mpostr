@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2009 OpenVPN Technologies, Inc. <sales@openvpn.net>
+ *  Copyright (C) 2002-2010 OpenVPN Technologies, Inc. <sales@openvpn.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -26,7 +26,6 @@
 #define BUFFER_H
 
 #include "basic.h"
-#include "thread.h"
 
 #define BUF_SIZE_MAX 1000000
 
@@ -88,7 +87,7 @@ bool buf_assign (struct buffer *dest, const struct buffer *src);
 void string_clear (char *str);
 int string_array_len (const char **array);
 
-size_t array_mult_safe (const size_t m1, const size_t m2);
+size_t array_mult_safe (const size_t m1, const size_t m2, const size_t extra);
 
 #define PA_BRACKET (1<<0)
 char *print_argv (const char **p, struct gc_arena *gc, const unsigned int flags);
@@ -724,6 +723,12 @@ void gc_transfer (struct gc_arena *dest, struct gc_arena *src);
 
 void x_gc_free (struct gc_arena *a);
 
+static inline bool
+gc_defined (struct gc_arena *a)
+{
+  return a->list != NULL;
+}
+
 static inline void
 gc_init (struct gc_arena *a)
 {
@@ -776,23 +781,28 @@ void out_of_memory (void);
 
 #define ALLOC_ARRAY(dptr, type, n) \
 { \
-  check_malloc_return ((dptr) = (type *) malloc (array_mult_safe (sizeof (type), (n)))); \
+  check_malloc_return ((dptr) = (type *) malloc (array_mult_safe (sizeof (type), (n), 0))); \
 }
 
 #define ALLOC_ARRAY_GC(dptr, type, n, gc) \
 { \
-  (dptr) = (type *) gc_malloc (array_mult_safe (sizeof (type), (n)), false, (gc)); \
+  (dptr) = (type *) gc_malloc (array_mult_safe (sizeof (type), (n), 0), false, (gc)); \
 }
 
 #define ALLOC_ARRAY_CLEAR(dptr, type, n) \
 { \
   ALLOC_ARRAY (dptr, type, n); \
-  memset ((dptr), 0, (array_mult_safe (sizeof(type), (n)))); \
+  memset ((dptr), 0, (array_mult_safe (sizeof(type), (n), 0)));	\
 }
 
 #define ALLOC_ARRAY_CLEAR_GC(dptr, type, n, gc) \
 { \
-  (dptr) = (type *) gc_malloc (array_mult_safe (sizeof (type), (n)), true, (gc)); \
+  (dptr) = (type *) gc_malloc (array_mult_safe (sizeof (type), (n), 0), true, (gc)); \
+}
+
+#define ALLOC_VAR_ARRAY_CLEAR_GC(dptr, type, atype, n, gc)	\
+{ \
+  (dptr) = (type *) gc_malloc (array_mult_safe (sizeof (atype), (n), sizeof (type)), true, (gc)); \
 }
 
 #define ALLOC_OBJ_GC(dptr, type, gc) \
@@ -840,8 +850,12 @@ bool buffer_list_defined (const struct buffer_list *ol);
 void buffer_list_reset (struct buffer_list *ol);
 
 void buffer_list_push (struct buffer_list *ol, const unsigned char *str);
-const struct buffer *buffer_list_peek (struct buffer_list *ol);
+struct buffer_entry *buffer_list_push_data (struct buffer_list *ol, const uint8_t *data, size_t size);
+struct buffer *buffer_list_peek (struct buffer_list *ol);
 void buffer_list_advance (struct buffer_list *ol, int n);
+void buffer_list_pop (struct buffer_list *ol);
+
+void buffer_list_aggregate (struct buffer_list *bl, const size_t max);
 
 struct buffer_list *buffer_list_file (const char *fn, int max_line_len);
 

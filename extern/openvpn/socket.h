@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2009 OpenVPN Technologies, Inc. <sales@openvpn.net>
+ *  Copyright (C) 2002-2010 OpenVPN Technologies, Inc. <sales@openvpn.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -198,6 +198,7 @@ struct link_socket
 # define SF_USE_IP_PKTINFO (1<<0)
 # define SF_TCP_NODELAY (1<<1)
 # define SF_PORT_SHARE (1<<2)
+# define SF_HOST_RANDOMIZE (1<<3)
   unsigned int sockflags;
 
   /* for stream sockets */
@@ -438,6 +439,11 @@ bool unix_socket_get_peer_uid_gid (const socket_descriptor_t sd, int *uid, int *
  * DNS resolution
  */
 
+struct resolve_list {
+  int len;
+  in_addr_t data[16];
+};
+
 #define GETADDR_RESOLVE               (1<<0)
 #define GETADDR_FATAL                 (1<<1)
 #define GETADDR_HOST_ORDER            (1<<2)
@@ -447,12 +453,20 @@ bool unix_socket_get_peer_uid_gid (const socket_descriptor_t sd, int *uid, int *
 #define GETADDR_MSG_VIRT_OUT          (1<<6)
 #define GETADDR_TRY_ONCE              (1<<7)
 #define GETADDR_UPDATE_MANAGEMENT_STATE (1<<8)
+#define GETADDR_RANDOMIZE             (1<<9)
 
 in_addr_t getaddr (unsigned int flags,
 		   const char *hostname,
 		   int resolve_retry_seconds,
 		   bool *succeeded,
 		   volatile int *signal_received);
+
+in_addr_t getaddr_multi (unsigned int flags,
+			 const char *hostname,
+			 int resolve_retry_seconds,
+			 bool *succeeded,
+			 volatile int *signal_received,
+			 struct resolve_list *reslist);
 
 /*
  * Transport protocol naming and other details.
@@ -493,6 +507,12 @@ static inline bool
 legal_ipv4_port (int port)
 {
   return port > 0 && port < 65536;
+}
+
+static inline int
+is_proto_tcp(const int p)
+{
+  return p > 0; /* depends on the definition of PROTO_x */
 }
 
 static inline bool
