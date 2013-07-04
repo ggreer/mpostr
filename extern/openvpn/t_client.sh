@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # run OpenVPN client against ``test reference'' server
 # - check that ping, http, ... via tunnel works
@@ -80,12 +80,12 @@ fail()
 get_ifconfig_route()
 {
     # linux / iproute2? (-> if configure got a path)
-    if [ "ip" != "ip" ]
+    if [ "/sbin/ip" != "ip" ]
     then
 	echo "-- linux iproute2 --"
-	ip addr show     | grep -v valid_lft
-	ip route show
-	ip -6 route show | sed -e 's/expires [0-9]*sec //'
+	/sbin/ip addr show     | grep -v valid_lft
+	/sbin/ip route show
+	/sbin/ip -6 route show | sed -e 's/expires [0-9]*sec //'
 	return
     fi
 
@@ -94,26 +94,26 @@ get_ifconfig_route()
 	Linux)
 	   echo "-- linux / ifconfig --"
 	   LANG=C /sbin/ifconfig -a |egrep  "( addr:|encap:)"
-	   LANG=C /usr/sbin/netstat -rn -4 -6
+	   LANG=C /bin/netstat -rn -4 -6
 	   return
 	   ;;
 	FreeBSD|NetBSD|Darwin)
 	   echo "-- FreeBSD/NetBSD/Darwin [MacOS X] --"
 	   /sbin/ifconfig -a | egrep "(flags=|inet)"
-	   /usr/sbin/netstat -rn | awk '$3 !~ /^UHL/ { print $1,$2,$3,$NF }'
+	   /bin/netstat -rn | awk '$3 !~ /^UHL/ { print $1,$2,$3,$NF }'
 	   return
 	   ;;
 	OpenBSD)
 	   echo "-- OpenBSD --"
 	   /sbin/ifconfig -a | egrep "(flags=|inet)" | \
 		sed -e 's/pltime [0-9]*//' -e 's/vltime [0-9]*//'
-	   /usr/sbin/netstat -rn | awk '$3 !~ /^UHL/ { print $1,$2,$3,$NF }'
+	   /bin/netstat -rn | awk '$3 !~ /^UHL/ { print $1,$2,$3,$NF }'
 	   return
 	   ;;
 	SunOS)
 	   echo "-- Solaris --"
 	   /sbin/ifconfig -a | egrep "(flags=|inet)"
-	   /usr/sbin/netstat -rn | awk '$3 !~ /^UHL/ { print $1,$2,$3,$6 }'
+	   /bin/netstat -rn | awk '$3 !~ /^UHL/ { print $1,$2,$3,$6 }'
 	   return
 	   ;;
     esac
